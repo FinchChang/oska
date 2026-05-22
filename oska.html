@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>大阪隨身萬用行程看板</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-amber: #f59e0b;
+            --accent-blue: #38bdf8;
+            --accent-red: #ef4444;
+            --accent-green: #10b981;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif; background-color: var(--bg-main); color: var(--text-main); padding-bottom: 30px; }
+
+        /* 固定頂部導覽 */
+        .sticky-header { position: sticky; top: 0; background-color: var(--bg-main); border-bottom: 2px solid #334155; z-index: 100; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
+        .app-title { text-align: center; font-size: 16px; padding: 8px 0; color: var(--text-muted); letter-spacing: 1px; font-weight: bold; }
+        
+        /* 滾動天數頁籤 */
+        .day-tabs { display: flex; overflow-x: auto; white-space: nowrap; padding: 5px 10px 10px 10px; scrollbar-width: none; }
+        .day-tabs::-webkit-scrollbar { display: none; }
+        .tab-btn { background: #334155; color: var(--text-muted); border: none; padding: 10px 18px; margin-right: 8px; border-radius: 8px; font-size: 15px; font-weight: bold; flex-shrink: 0; }
+        .tab-btn.active { background: var(--accent-amber); color: var(--bg-main); }
+
+        /* 主內容區 */
+        .container { padding: 15px; max-width: 600px; margin: 0 auto; }
+        .day-content { display: none; }
+        .day-content.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 天數概覽卡 */
+        .summary-card { background: linear-gradient(135deg, #1e3a8a, #0f172a); border: 1px solid #3b82f6; border-radius: 12px; padding: 15px; margin-bottom: 15px; }
+        .summary-card h2 { font-size: 20px; color: #ffffff; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
+        .summary-card p { font-size: 14px; color: var(--accent-blue); }
+
+        /* 行程時間軸字卡 */
+        .timeline-item { background: var(--bg-card); border-radius: 12px; padding: 15px; margin-bottom: 12px; border-left: 5px solid var(--accent-blue); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .timeline-item.warning-style { border-left-color: var(--accent-red); }
+        .timeline-item.special-style { border-left-color: var(--accent-green); }
+
+        .time-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .time-badge { font-family: monospace; font-size: 18px; color: var(--accent-amber); font-weight: bold; }
+        .type-badge { font-size: 12px; background: #334155; padding: 2px 8px; border-radius: 4px; color: var(--text-main); }
+
+        .location-title { font-size: 18px; font-weight: bold; margin-bottom: 8px; color: #ffffff; }
+        .action-desc { font-size: 15px; color: var(--text-main); line-height: 1.5; margin-bottom: 10px; }
+
+        /* 核心交通卡（最重要） */
+        .transit-box { background: #0f172a; border-radius: 8px; padding: 12px; margin-top: 8px; border: 1px solid #475569; }
+        .transit-box h4 { font-size: 14px; color: var(--accent-blue); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+        .transit-route { font-size: 14px; line-height: 1.6; color: #e2e8f0; }
+        .route-step { background: #334155; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+
+        /* 警示卡 */
+        .alert-box { background: #7f1d1d; border: 1px solid var(--accent-red); border-radius: 8px; padding: 12px; margin-top: 8px; color: #fca5a5; font-size: 14px; }
+        .alert-box strong { color: #ffffff; }
+
+        /* 備忘錄核取方塊 */
+        .checklist { background: var(--bg-card); border-radius: 12px; padding: 15px; margin-top: 15px; border: 1px solid #334155; }
+        .checklist h3 { font-size: 16px; margin-bottom: 10px; color: var(--accent-amber); }
+        .check-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 15px; }
+        .check-item input { width: 18px; height: 18px; accent-color: var(--accent-amber); }
+    </style>
+</head>
+<body>
+
+<div class="sticky-header">
+    <div class="app-title"><i class="fa-solid fa-compass"></i> OSAKA TRIP隨身看板</div>
+    <div class="day-tabs" id="tabContainer">
+        <button class="tab-btn active" onclick="switchDay(1)">D1 5/23</button>
+        <button class="tab-btn" onclick="switchDay(2)">D2 5/24</button>
+        <button class="tab-btn" onclick="switchDay(3)">D3 5/25</button>
+        <button class="tab-btn" onclick="switchDay(4)">D4 5/26</button>
+        <button class="tab-btn" onclick="switchDay(5)">D5 5/27</button>
+        <button class="tab-btn" onclick="switchDay(6)">D6 5/28</button>
+        <button class="tab-btn" onclick="switchDay(7)">D7 5/29</button>
+        <button class="tab-btn" onclick="switchDay(8)">D8 5/30</button>
+    </div>
+</div>
+
+<div class="container">
+
+    <div id="day1" class="day-content active">
+        <div class="summary-card">
+            <h2>Day 1 ➔ 機場直奔市區</h2>
+            <p><i class="fa-solid fa-hotel"></i> 基地：天六宿 (5-7 Kaneichō)</p>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">12:00</span><span class="type-badge">入境</span></div>
+            <div class="location-title">關西機場 (KIX)</div>
+            <div class="action-desc">辦理通關、提領行李。預估耗時 1.5 ~ 2 小時。</div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">14:00 - 15:30</span><span class="type-badge">交通</span></div>
+            <div class="location-title">前往 天神橋筋六丁目 (天六)</div>
+            <div class="action-desc">直奔民宿放行李、稍作休息。</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 坐車指南</h4>
+                <div class="transit-route">
+                    機場搭 <span class="route-step" style="background:#e11d48;">JR Haruka</span> ➔ 「天王寺站」下車 ➔ 免出站轉地下鐵 <span class="route-step" style="background:#b45309;">堺筋線</span> ➔ 直達「天神橋筋六丁目站」。
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">17:30 - 19:30</span><span class="type-badge">晚餐</span></div>
+            <div class="location-title">敘敘苑 (LUCUA梅田店)</div>
+            <div class="action-desc">享用高級燒肉。</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 坐車指南</h4>
+                <div class="transit-route">
+                    「天六站」搭地下鐵 <span class="route-step" style="background:#1e3a8a;">谷町線</span> ➔ 「東梅田站」下車，步行 5 分鐘至 LUCUA 百貨 10 樓。
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">19:45 - 21:00</span><span class="type-badge">景點</span></div>
+            <div class="location-title">大阪城公園</div>
+            <div class="action-desc">夜間點燈散步、拍無人大阪城天守閣。</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 坐車指南</h4>
+                <div class="transit-route">
+                    梅田搭乘 <span class="route-step" style="background:#dc2626;">JR大阪環狀線</span> ➔ 「大阪城公園站」下車直達。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="day2" class="day-content">
+        <div class="summary-card" style="border-color: var(--accent-red);">
+            <h2>Day 2 ➔ 奈良公園看鹿</h2>
+            <p class="warning-style" style="color: #fca5a5;"><i class="fa-solid fa-circle-exclamation"></i> 今天是週日！人潮極多，必須早出發</p>
+        </div>
+
+        <div class="timeline-item warning-style">
+            <div class="time-meta"><span class="time-badge">08:00 - 09:00</span><span class="type-badge">交通</span></div>
+            <div class="location-title">天六 ➔ 近鐵奈良站</div>
+            <div class="action-desc">務必八點前出門，趕在觀光大軍前抵達奈良。</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 免出站特快坐法</h4>
+                <div class="transit-route">
+                    「天六站」搭地下鐵 <span class="route-step" style="background:#b45309;">堺筋線</span> ➔ 坐到「日本橋站」<br><strong>【關鍵】不用出站！</strong> 直接在站內月台轉乘 <span class="route-step" style="background:#047857;">近鐵奈良線（快速急行）</span> ➔ 直達「近鐵奈良站」。
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">09:10 - 12:00</span><span class="type-badge">景點</span></div>
+            <div class="location-title">東大寺 ➔ 奈良公園</div>
+            <div class="action-desc">先看東大寺大佛，沿路回程買鹿餅餵鹿。</div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">12:00 - 13:30</span><span class="type-badge">午餐</span></div>
+            <div class="location-title">中谷堂麻糬 ➔ 奈良商店街</div>
+            <div class="action-desc">品嚐名店，看現場暴力搗麻糬秀。</div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">14:00</span><span class="type-badge">回程</span></div>
+            <div class="location-title">返回大阪天六</div>
+            <div class="action-desc">下午回宿稍微躺著休息避暑，晚上自由在天六商店街吃local美食。</div>
+        </div>
+    </div>
+
+    <div id="day3" class="day-content">
+        <div class="summary-card">
+            <h2>Day 3 ➔ 海遊館港區散策</h2>
+            <p><i class="fa-solid fa-clock"></i> 下午空檔已補滿，行程最順路</p>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">09:15 - 10:00</span><span class="type-badge">交通</span></div>
+            <div class="location-title">天六 ➔ 大阪港</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 坐車指南</h4>
+                <div class="transit-route">
+                    「天六站」搭地下鐵 <span class="route-step" style="background:#b45309;">堺筋線</span> ➔ 「堺筋本町站」轉乘地下鐵 <span class="route-step" style="background:#1d4ed8;">中央線</span> ➔ 「大阪港站」下車，由 <strong>1號出口</strong> 步行5分鐘。
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">10:00 - 13:00</span><span class="type-badge">景點</span></div>
+            <div class="location-title">海遊館（看巨大鯨鯊）</div>
+            <div class="action-desc">全室內不曬。順著中央大水槽由上往下逛。</div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">13:00 - 16:30</span><span class="type-badge">吃飽玩足</span></div>
+            <div class="location-title">天保山購物中心 ➔ 大摩天輪</div>
+            <div class="action-desc">美食街吃北極星蛋包飯，隨後搭乘摩天輪俯瞰大阪港，或搭乘聖瑪利亞號帆船。</div>
+        </div>
+    </div>
+
+    <div id="day4" class="day-content">
+        <div class="summary-card" style="background: linear-gradient(135deg, #b45309, #0f172a);">
+            <h2>Day 4 ➔ 環球影城 (USJ) 全日衝刺</h2>
+            <p><i class="fa-solid fa-bolt"></i> 修正原行程錯誤，這天必須玩到閉園！</p>
+        </div>
+
+        <div class="timeline-item warning-style">
+            <div class="time-meta"><span class="time-badge">06:30 - 07:15</span><span class="type-badge">拼早出門</span></div>
+            <div class="location-title">天六 ➔ USJ 門口排隊</div>
+            <div class="action-desc">官方寫8、9點開園都是騙人的，通常提早放人，一定要7點出頭到門口！</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 轉車兩次路線</h4>
+                <div class="transit-route">
+                    1.「天六」搭 <span class="route-step" style="background:#1e3a8a;">谷町線</span> ➔ 「東梅田站」<br>
+                    2. 走到鄰近的「JR大阪站」搭 <span class="route-step" style="background:#dc2626;">JR環狀線</span> ➔ 「西九條站」<br>
+                    3. 轉乘 <span class="route-step">JR櫻島線</span> ➔ 「Universal City站」下車。
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-item special-style">
+            <div class="time-meta"><span class="time-badge">07:30 - 入園</span><span class="type-badge">開戰</span></div>
+            <div class="location-title">過閘門必做兩件事</div>
+            <div class="alert-box">
+                1. <strong>立刻打開 USJ 官方 App</strong> 登錄全員門票，線上搶「超級任天堂世界」的保證入場整理券！<br>
+                2. 沒抽到前，直接用肉身衝哈利波特區或小黃人。
+            </div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">12:00 - 21:00</span><span class="type-badge">全日</span></div>
+            <div class="location-title">玩滿全場 ➔ 閉園</div>
+            <div class="action-desc">配合購買的快速通關時間玩設施。晚上拍哈利波特夜景，出園在 CityWalk 吃完晚餐再回天六。</div>
+        </div>
+    </div>
+
+    <div id="day5" class="day-content">
+        <div class="summary-card">
+            <h2>Day 5 ➔ 復古樂園 ➔ 夜間數位藝術</h2>
+            <p><i class="fa-solid fa-moon"></i> 日夜轉換，中途回民宿充電</p>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">09:30 - 14:30</span><span class="type-badge">日間</span></div>
+            <div class="location-title">生駒山上遊樂園</div>
+            <div class="action-desc">搭乘全日本最古老、超可愛的貓咪狗頭纜車上山。山頂樂園超適合親子。</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 坐車指南</h4>
+                <div class="transit-route">
+                    「天六站」搭 <span class="route-step" style="background:#b45309;">堺筋線</span> ➔ 「堺筋本町站」轉乘 <span class="route-step" style="background:#1d4ed8;">中央線（往近鐵學研奈良方向，直通運轉）</span> ➔ 直達「生駒站」。出站走至「鳥居前站」換登山纜車。
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-item special-style">
+            <div class="time-meta"><span class="time-badge">15:00 - 17:00</span><span class="type-badge">休息</span></div>
+            <div class="location-title">回民宿補眠</div>
+            <div class="action-desc">為了晚上的夜間展，下午回天六吹冷氣睡午覺。</div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">18:30 - 20:30</span><span class="type-badge">夜間</span></div>
+            <div class="location-title">teamLab 長居植物園</div>
+            <div class="action-desc">超震撼夜間露天光影展，18:30剛好天黑入場最美。</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 坐車指南</h4>
+                <div class="transit-route">
+                    「天六站」搭 <span class="route-step" style="background:#b45309;">堺筋線</span> ➔ 「動物園前站」轉乘 <span class="route-step" style="background:#dc2626;">御堂筋線</span> ➔ 直達「長居站」，3號出口步行10分鐘。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="day6" class="day-content">
+        <div class="summary-card" style="background: linear-gradient(135deg, #047857, #0f172a);">
+            <h2>Day 6 ➔ 海之京都（KKday 團）</h2>
+            <p><i class="fa-solid fa-bus"></i> 今日全程遊覽車，切勿遲到</p>
+        </div>
+
+        <div class="timeline-item warning-style">
+            <div class="time-meta"><span class="time-badge">06:40 - 07:15</span><span class="type-badge">出發</span></div>
+            <div class="location-title">天六 ➔ 日本橋集合點</div>
+            <div class="action-desc">巴士準時開走，沒跟上就慘了。06:40必出門！</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 坐車指南</h4>
+                <div class="transit-route">
+                    「天六站」搭乘地下鐵 <span class="route-step" style="background:#b45309;">堺筋線</span> ➔ 直達「日本橋站」，走 <strong>2號出口</strong>（國立文樂劇場前）找KKday導遊報到。
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">07:30 - 19:00</span><span class="type-badge">跟團</span></div>
+            <div class="location-title">天橋立 ➔ 伊根舟屋 ➔ 美山町</div>
+            <div class="action-desc">坐車放空。必做：伊根灣搭船買蝦條餵海鷗（小朋友最愛）。</div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">19:00 ~</span><span class="type-badge">解散</span></div>
+            <div class="location-title">日本橋解散 ➔ 晚餐</div>
+            <div class="action-desc">直接在難波或道頓堀吃晚餐，隨後搭堺筋線回天六民宿。</div>
+        </div>
+    </div>
+
+    <div id="day7" class="day-content">
+        <div class="summary-card">
+            <h2>Day 7 ➔ 神戶深度親子一日遊</h2>
+            <p><i class="fa-solid fa-paw"></i> 近距離摸水豚 ➔ 看香草園夜景</p>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">09:00 - 10:00</span><span class="type-badge">交通</span></div>
+            <div class="location-title">天六 ➔ 神戶動物王國</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 坐車指南</h4>
+                <div class="transit-route">
+                    1.「天六」搭 <span class="route-step" style="background:#b45309;">堺筋線</span> 往梅田方向，或去梅田轉乘 <span class="route-step" style="background:#991b1b;">阪急神戶線（特急）</span> ➔ 「神戶三宮站」<br>
+                    2. 轉搭高架電車 <span class="route-step">Port Liner (港灣島線)</span> ➔ 「計算科學中心站」下車直達。
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-item special-style">
+            <div class="time-meta"><span class="time-badge">10:00 - 13:30</span><span class="type-badge">玩樂</span></div>
+            <div class="location-title">神戶動物王國</div>
+            <div class="action-desc">全開放無柵欄。水豚、小熊貓就在身邊走。午餐直接在園區內享用輕食。</div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">14:30 - 17:00</span><span class="type-badge">景點</span></div>
+            <div class="location-title">布引香草園（景觀纜車）</div>
+            <div class="action-desc">搭長達10分鐘的夢幻纜車上山，遠眺神戶港。</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 交通方式</h4>
+                <div class="transit-route">
+                    搭 Port Liner 回三宮站，轉地下鐵西神・山手線 ➔ 「新神戶站」下車直達纜車站。
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="time-meta"><span class="time-badge">17:30 - 20:00</span><span class="type-badge">夜景</span></div>
+            <div class="location-title">神戶港 Mosaic 廣場</div>
+            <div class="action-desc">（補足下午空檔）吃神戶牛晚餐，觀賞紅色神戶港塔夜景後，搭阪急電鐵回大阪。</div>
+        </div>
+    </div>
+
+    <div id="day8" class="day-content">
+        <div class="summary-card">
+            <h2>Day 8 ➔ 最後大採買 ➔ 平安歸國</h2>
+            <p><i class="fa-solid fa-plane-departure"></i> 航班 19:05 起飛，16:30 必須到機場</p>
+        </div>
+
+        <div class="timeline-item special-style">
+            <div class="time-meta"><span class="time-badge">10:00 - 13:30</span><span class="type-badge">購物</span></div>
+            <div class="location-title">天神橋筋商店街</div>
+            <div class="action-desc">日本最長的商店街就在民宿下。退房寄放行李後，下樓做藥妝、零食最後大補貨，順便吃 local 壽司當午餐。</div>
+        </div>
+
+        <div class="timeline-item warning-style">
+            <div class="time-meta"><span class="time-badge">14:00 - 15:30</span><span class="type-badge">去機場</span></div>
+            <div class="location-title">天六民宿 ➔ 關西機場 (KIX)</div>
+            <div class="action-desc">提完行李出發。利用「天下茶屋轉車法」，提大件行李、推嬰兒車最省力。</div>
+            <div class="transit-box">
+                <h4><i class="fa-solid fa-train"></i> 最省力坐車指南</h4>
+                <div class="transit-route">
+                    「天六站」搭地下鐵 <span class="route-step" style="background:#b45309;">堺筋線</span> ➔ 一路坐到終點站 <strong>「天下茶屋站」</strong>。<br>
+                    <strong>【超級方便】</strong>出地下鐵閘門，正對面就是南海電鐵閘門。換乘 <span class="route-step" style="background:#1e3a8a;">南海電鐵特急 Rapi:t</span> ➔ 直達機場。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="checklist">
+        <h3><i class="fa-solid fa-list-check"></i> 出門前手機必備憑證</h3>
+        <label class="check-item"><input type="checkbox"> <span>iPhone 錢包已綁定 ICOCA 卡</span></label>
+        <label class="check-item"><input type="checkbox"> <span>USJ 官方 App 下載完畢並綁定門票</span></label>
+        <label class="check-item"><input type="checkbox"> <span>KKday 天橋立憑證 QR Code 截圖備用</span></label>
+        <label class="check-item"><input type="checkbox"> <span>行動電源已充滿電</span></label>
+    </div>
+
+</div>
+
+<script>
+    function switchDay(dayNum) {
+        // 切換頁籤顏色
+        const buttons = document.querySelectorAll('.tab-btn');
+        buttons.forEach((btn, index) => {
+            if (index === (dayNum - 1)) {
+                btn.classList.add('active');
+                // 讓被點選的頁籤自動滾動到置中畫面，方便單手操作
+                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // 切換天數內容
+        const contents = document.querySelectorAll('.day-content');
+        contents.forEach((content) => {
+            content.classList.remove('active');
+        });
+        document.getElementById('day' + dayNum).classList.add('active');
+        
+        // 每次切換自動滾動回頂部
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+</script>
+
+</body>
+</html>
